@@ -1,0 +1,99 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Prepare tiny synthetic sample
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+
+          Path('data/raw/yellow').mkdir(parents=True, exist_ok=True)
+          Path('data/raw/green').mkdir(parents=True, exist_ok=True)
+
+          yellow = pd.DataFrame([
+              {
+                  'VendorID': 1,
+                  'tpep_pickup_datetime': '2025-01-01 10:00:00',
+                  'tpep_dropoff_datetime': '2025-01-01 10:20:00',
+                  'passenger_count': 1,
+                  'trip_distance': 4.2,
+                  'RatecodeID': 1,
+                  'store_and_fwd_flag': 'N',
+                  'PULocationID': 161,
+                  'DOLocationID': 230,
+                  'payment_type': 1,
+                  'fare_amount': 20.0,
+                  'extra': 1.0,
+                  'mta_tax': 0.5,
+                  'tip_amount': 3.0,
+                  'tolls_amount': 0.0,
+                  'improvement_surcharge': 0.3,
+                  'total_amount': 24.8,
+                  'congestion_surcharge': 2.5,
+                  'Airport_fee': 0.0,
+              }
+          ])
+
+          green = pd.DataFrame([
+              {
+                  'VendorID': 2,
+                  'lpep_pickup_datetime': '2025-01-02 09:00:00',
+                  'lpep_dropoff_datetime': '2025-01-02 09:18:00',
+                  'passenger_count': 2,
+                  'trip_distance': 3.1,
+                  'RatecodeID': 1,
+                  'store_and_fwd_flag': 'N',
+                  'PULocationID': 74,
+                  'DOLocationID': 75,
+                  'payment_type': 2,
+                  'fare_amount': 16.0,
+                  'extra': 1.0,
+                  'mta_tax': 0.5,
+                  'tip_amount': 0.0,
+                  'tolls_amount': 0.0,
+                  'improvement_surcharge': 0.3,
+                  'total_amount': 17.8,
+                  'congestion_surcharge': 0.0,
+              }
+          ])
+
+          zones = pd.DataFrame([
+              {'LocationID': 161, 'Borough': 'Manhattan', 'Zone': 'Midtown Center', 'service_zone': 'Yellow Zone'},
+              {'LocationID': 74, 'Borough': 'Manhattan', 'Zone': 'East Harlem North', 'service_zone': 'Boro Zone'},
+          ])
+
+          yellow.to_parquet('data/raw/yellow/sample_yellow.parquet', index=False)
+          green.to_parquet('data/raw/green/sample_green.parquet', index=False)
+          zones.to_csv('data/raw/taxi_zone_lookup.csv', index=False)
+          PY
+
+      - name: Run pipeline
+        run: python scripts/run_pipeline.py --db warehouse.duckdb --data-dir data/raw
+
+      - name: Smoke test
+        run: |
+          python - <<'PY'
+          import duckdb
+          con = duckdb.connect('warehouse.duckdb')
+          count = con.execute('SELECT COUNT(*) FROM gold.monthly_zone_metrics').fetchone()[0]
+          assert count > 0, 'gold.monthly_zone_metrics should not be empty'
+          print('OK')
+          PY
