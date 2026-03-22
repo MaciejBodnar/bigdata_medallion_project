@@ -20,7 +20,7 @@ Celem projektu jest zbudowanie prostego, ale realistycznego pipeline'u danych w 
 
 ## Dlaczego ten dataset?
 
-Oficjalne dane NYC TLC są publikowane **co miesiąc** i udostępniane w formacie **Parquet**, co dobrze pasuje do ćwiczenia big data i warstw bronze/silver/gold. Oficjalna strona NYC TLC podaje też, że dane są duże i mogą mieć drobne różnice schematów między latami, co jest dobrym, realistycznym przypadkiem jakości danych. citeturn100974search0turn100974search1turn100974search19
+Oficjalne dane NYC TLC są publikowane **co miesiąc** i udostępniane w formacie **Parquet**, co dobrze pasuje do ćwiczenia big data i warstw bronze/silver/gold. Oficjalna strona NYC TLC podaje też, że dane są duże i mogą mieć drobne różnice schematów między latami, co jest dobrym, realistycznym przypadkiem jakości danych.
 
 ---
 
@@ -32,7 +32,7 @@ Oficjalne dane NYC TLC są publikowane **co miesiąc** i udostępniane w formaci
 - **GitHub** jako repozytorium
 - **GitHub Actions** do prostego CI
 
-DuckDB pozwala bezpośrednio czytać pliki Parquet przez `read_parquet(...)`, także wiele plików naraz, a także tworzyć tabele przez `CREATE TABLE AS SELECT ...`. To upraszcza reproducibility i lokalne uruchomienie projektu. citeturn100974search3turn100974search13turn100974search19
+DuckDB pozwala bezpośrednio czytać pliki Parquet przez `read_parquet(...)`, także wiele plików naraz, a także tworzyć tabele przez `CREATE TABLE AS SELECT ...`. To upraszcza reproducibility i lokalne uruchomienie projektu.
 
 ---
 
@@ -70,16 +70,12 @@ bigdata-medallion-nyc-taxi/
 2. **Green Taxi Trip Records** – wiele miesięcznych plików parquet
 3. **Taxi Zone Lookup** – słownik stref
 
-### Jak dojść do ~10 GB
+### Dane ~10 GB
 
-Najprościej pobrać:
+Naley pobrać:
 
 - **24–36 miesięcy Yellow Taxi**, oraz
 - **24–36 miesięcy Green Taxi**
-
-W praktyce warto pobrać więcej niż minimalne 10 GB, np. **ok. 12–15 GB**, żeby po kompresji / różnicach rozmiaru nie zejść poniżej wymagań.
-
-Oficjalne źródło danych: NYC TLC Trip Record Data. Dane są publikowane co miesiąc jako pliki parquet. citeturn100974search0
 
 ---
 
@@ -175,11 +171,11 @@ duckdb warehouse.duckdb < sql/04_validation_queries.sql
 - **Gold layer with JOIN / aggregation** → `sql/03_create_gold.sql`
 - **Reproducible SQL script** → skrypty SQL + `scripts/run_pipeline.py`
 - **3 data quality risks** → `docs/data_quality_risks.md`
-- **Git link** → repo na GitHub
+- **Git link** → [repo na GitHub](https://github.com/MaciejBodnar/bigdata_medallion_project)
 
 ---
 
-## Proponowany opis do oddania / prezentacji
+## Co wykonałem
 
 1. Postawiłem bazę danych DuckDB.
 2. Załadowałem surowe dane NYC TLC do warstwy raw.
@@ -187,18 +183,3 @@ duckdb warehouse.duckdb < sql/04_validation_queries.sql
 4. W gold przygotowałem agregacje przychodów i liczby kursów per miesiąc / strefa.
 5. Zidentyfikowałem 3 ryzyka jakości danych: braki referencyjne, błędne wartości liczbowe, niejednorodność schematu.
 6. Całość jest odtwarzalna z repo i uruchamiana skryptami.
-
----
-
-## Uwaga praktyczna
-
-Do **CI** nie warto pobierać pełnych 10 GB. W CI uruchamiaj tylko mały sample danych, a pełny wsad buduj lokalnie. Dzięki temu repo pokaże poprawne praktyki inżynierskie bez ryzyka timeoutów.
-
----
-
-## Dalsze rozszerzenia
-
-- dashboard w Power BI / Metabase,
-- partycjonowanie gold po miesiącu,
-- testy jakości danych,
-- eksport gold do parquet.

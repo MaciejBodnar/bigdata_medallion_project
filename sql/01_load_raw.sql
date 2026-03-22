@@ -1,8 +1,3 @@
--- This script expects local files under:
--- data/raw/yellow/*.parquet
--- data/raw/green/*.parquet
--- data/raw/taxi_zone_lookup.csv
-
 DROP TABLE IF EXISTS raw.yellow_taxi_trips;
 CREATE TABLE raw.yellow_taxi_trips AS
 SELECT *

@@ -3,7 +3,7 @@ import shutil
 import ssl
 import time
 from pathlib import Path
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 BASE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data"
@@ -13,15 +13,7 @@ ZONE_URL = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
 def _build_ssl_context() -> ssl.SSLContext:
     """Create an SSL context with a reliable CA bundle when available."""
     try:
-        import certifi  # type: ignore
-
-        return ssl.create_default_context(cafile=certifi.where())
-    except Exception:
-        pass
-
-    try:
-        from pip._vendor import certifi as pip_certifi  # type: ignore
-
+        from pip._vendor import certifi as pip_certifi
         return ssl.create_default_context(cafile=pip_certifi.where())
     except Exception:
         return ssl.create_default_context()
@@ -49,10 +41,6 @@ def download(url: str, dest: Path, retries: int = 3) -> None:
             return
         except Exception as exc:
             last_error = exc
-
-            # 4xx (except 429) are usually permanent for that URL, so don't retry.
-            if isinstance(exc, HTTPError) and 400 <= exc.code < 500 and exc.code != 429:
-                break
 
             if dest.exists():
                 dest.unlink(missing_ok=True)
