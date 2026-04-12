@@ -12,7 +12,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -85,15 +85,19 @@ jobs:
           zones.to_csv('data/raw/taxi_zone_lookup.csv', index=False)
           PY
 
-      - name: Run pipeline
-        run: python scripts/run_pipeline.py --db warehouse.duckdb --data-dir data/raw
+      - name: Run Prefect + Spark pipeline (smoke)
+        run: |
+          python -m pipelines.taxi.main --skip-download --sample --years 2025 --months 1 --services yellow green
 
       - name: Smoke test
         run: |
           python - <<'PY'
-          import duckdb
-          con = duckdb.connect('warehouse.duckdb')
-          count = con.execute('SELECT COUNT(*) FROM gold.monthly_zone_metrics').fetchone()[0]
-          assert count > 0, 'gold.monthly_zone_metrics should not be empty'
+          from pathlib import Path
+          import pandas as pd
+
+          gold_files = sorted(Path('data/gold/taxi/monthly_zone_metrics').rglob('*.parquet'))
+          assert gold_files, 'gold monthly parquet files should exist'
+          count = pd.concat([pd.read_parquet(path) for path in gold_files], ignore_index=True).shape[0]
+          assert count > 0, 'gold monthly metrics should not be empty'
           print('OK')
           PY

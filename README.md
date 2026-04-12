@@ -1,185 +1,162 @@
-# Big Data – modelowanie, zarządzanie, przetwarzanie i integracja
+# NYC TLC Medallion Pipeline (Prefect + PySpark)
 
-## Temat projektu
+## Cel projektu
 
-**Analiza popytu i przychodów przejazdów taxi w Nowym Jorku w architekturze Medallion (Bronze / Silver / Gold)**
+Repozytorium realizuje pipeline danych NYC TLC taxi w architekturze Medallion:
 
-## Cel analityczny
+- bronze: surowe dane po inicjalnym załadowaniu,
+- silver: dane ustandaryzowane i oczyszczone,
+- gold: zagregowane tabele analityczne.
 
-Celem projektu jest zbudowanie prostego, ale realistycznego pipeline'u danych w architekturze medalionowej:
+Aktualna, główna i jedyna wspierana ścieżka wykonania to **Prefect + PySpark**.
 
-- **Bronze / raw** – surowe dane o kursach taxi i słowniki referencyjne,
-- **Silver / cleaned** – ujednolicone i oczyszczone rekordy,
-- **Gold / curated** – zagregowane dane biznesowe do analizy.
+## Dlaczego Prefect + PySpark
 
-### Główne pytanie biznesowe
+- Prefect daje czytelny orchestration flow i taski uruchamiane lokalnie bez dodatkowej infrastruktury.
+- PySpark zapewnia skalowalny silnik przetwarzania i łatwe przejście z local do większego środowiska.
+- Zapis warstw jako Parquet upraszcza idempotentne ponowne uruchamianie i kontrolę pipeline.
 
-**Które strefy i miesiące generują największy popyt oraz przychód z przejazdów taxi?**
+## Sprawdzone wersje
 
----
+- Prefect: `3.6.26`
+- PySpark: `3.5.2`
+- PyArrow: `20.0.0`
 
-## Dlaczego ten dataset?
+## Architektura
 
-Oficjalne dane NYC TLC są publikowane **co miesiąc** i udostępniane w formacie **Parquet**, co dobrze pasuje do ćwiczenia big data i warstw bronze/silver/gold. Oficjalna strona NYC TLC podaje też, że dane są duże i mogą mieć drobne różnice schematów między latami, co jest dobrym, realistycznym przypadkiem jakości danych.
+![Flow diagram](docs/flow-diagram.png)
 
----
-
-## Wybrana technologia
-
-- **DuckDB** jako baza danych (plik `warehouse.duckdb`)
-- **SQL** jako główny język transformacji
-- **Parquet / CSV** jako format wejściowy
-- **GitHub** jako repozytorium
-- **GitHub Actions** do prostego CI
-
-DuckDB pozwala bezpośrednio czytać pliki Parquet przez `read_parquet(...)`, także wiele plików naraz, a także tworzyć tabele przez `CREATE TABLE AS SELECT ...`. To upraszcza reproducibility i lokalne uruchomienie projektu.
-
----
+Diagram pokazuje prosty przepływ: od pobrania danych, przez Bronze, Silver i Gold, aż do walidacji końcowej. To jest główna ścieżka działania projektu.
 
 ## Struktura repo
 
 ```text
-bigdata-medallion-nyc-taxi/
-├── README.md
-├── requirements.txt
-├── .gitignore
-├── sql/
-│   ├── 00_init.sql
-│   ├── 01_load_raw.sql
-│   ├── 02_create_silver.sql
-│   ├── 03_create_gold.sql
-│   └── 04_validation_queries.sql
-├── scripts/
-│   ├── download_data.py
-│   └── run_pipeline.py
+.
+├── pipelines/
+│   └── taxi/
+│       ├── config.py
+│       ├── ingestion.py
+│       ├── bronze.py
+│       ├── silver.py
+│       ├── gold.py
+│       ├── validation.py
+│       ├── spark_session.py
+│       └── main.py
+├── orchestration/
+│   └── prefect_compat.py
 ├── docs/
-│   ├── problem_statement.md
-│   └── data_quality_risks.md
-└── .github/
-    └── workflows/
-        └── ci.yml
+│   ├── data_quality_risks.md
+│   ├── flow-diagram.png
+│   └── problem_statement.md
+├── artifacts/                    # walidacja JSON (runtime)
+├── data/
+│   ├── raw/
+│   ├── bronze/
+│   ├── silver/
+│   └── gold/
+├── Makefile
+└── requirements.txt
 ```
 
----
+## Pojedynczy entrypoint
 
-## Dane wejściowe
+Główny entrypoint uruchamiający pełny przepływ:
 
-### Pliki źródłowe
+```bash
+python -m pipelines.taxi.main
+```
 
-1. **Yellow Taxi Trip Records** – wiele miesięcznych plików parquet
-2. **Green Taxi Trip Records** – wiele miesięcznych plików parquet
-3. **Taxi Zone Lookup** – słownik stref
-
-### Dane ~10 GB
-
-Naley pobrać:
-
-- **24–36 miesięcy Yellow Taxi**, oraz
-- **24–36 miesięcy Green Taxi**
-
----
-
-## Model warstw
-
-### 1. Bronze / raw
-
-Schema: `raw`
-
-Tabele:
-
-- `raw.yellow_taxi_trips`
-- `raw.green_taxi_trips`
-- `raw.taxi_zone_lookup`
-
-Charakterystyka:
-
-- bez logiki biznesowej,
-- minimalne castowanie,
-- przechowanie danych „tak jak przyszły”.
-
-### 2. Silver / cleaned
-
-Schema: `silver`
-
-Tabele:
-
-- `silver.taxi_trips_cleaned`
-
-Działania:
-
-- ujednolicenie schematu yellow + green,
-- odfiltrowanie rekordów błędnych,
-- walidacja dat, dystansu i kwot,
-- standaryzacja typów danych,
-- deduplikacja.
-
-### 3. Gold / curated
-
-Schema: `gold`
-
-Tabele:
-
-- `gold.monthly_zone_metrics`
-- `gold.payment_type_metrics`
-
-Działania:
-
-- JOIN do słownika stref,
-- agregacja po miesiącu / strefie / typie płatności,
-- metryki do analizy biznesowej.
-
----
-
-## Jak uruchomić
-
-### 1. Instalacja
+## Instalacja
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Pobranie danych
+## Uruchomienie pipeline
 
-Przykład:
-
-```bash
-python scripts/download_data.py --years 2023 2024 2025 --services yellow green --output-dir data/raw
-```
-
-### 3. Uruchomienie pipeline'u
+### 1) Mała próbka (local smoke)
 
 ```bash
-python scripts/run_pipeline.py --db warehouse.duckdb --data-dir data/raw
+python -m pipelines.taxi.main --sample --years 2025 --months 1 --services yellow green
 ```
 
-### 4. Odpalenie walidacji
+### 2) Pełniejszy zakres miesięcy
 
 ```bash
-duckdb warehouse.duckdb < sql/04_validation_queries.sql
+python -m pipelines.taxi.main --years 2024 2025 --months 1 2 3 4 5 6 7 8 9 10 11 12 --services yellow green
 ```
 
----
+### 3) Użycie wcześniej pobranych danych (bez download)
 
-## Co dokładnie spełnia wymagania z zadania?
+```bash
+python -m pipelines.taxi.main --skip-download --years 2025 --months 1 2 3 --services yellow green
+```
 
-- **Initial problem statement** → `docs/problem_statement.md`
-- **Database created** → DuckDB database `warehouse.duckdb`
-- **Raw table loaded** → `sql/01_load_raw.sql`
-- **Cleaned table created** → `sql/02_create_silver.sql`
-- **Gold layer with JOIN / aggregation** → `sql/03_create_gold.sql`
-- **Reproducible SQL script** → skrypty SQL + `scripts/run_pipeline.py`
-- **3 data quality risks** → `docs/data_quality_risks.md`
-- **Git link** → [repo na GitHub](https://github.com/MaciejBodnar/bigdata_medallion_project)
+## Co robi flow Prefect
 
----
+Flow wykonuje kolejno taski:
 
-## Co wykonałem
+1. prepare directories
+2. download source files
+3. build bronze layer
+4. build silver layer
+5. build gold layer
+6. run data quality validation
 
-1. Postawiłem bazę danych DuckDB.
-2. Załadowałem surowe dane NYC TLC do warstwy raw.
-3. W silver ujednoliciłem schemat i oczyściłem rekordy.
-4. W gold przygotowałem agregacje przychodów i liczby kursów per miesiąc / strefa.
-5. Zidentyfikowałem 3 ryzyka jakości danych: braki referencyjne, błędne wartości liczbowe, niejednorodność schematu.
-6. Całość jest odtwarzalna z repo i uruchamiana skryptami.
+## Warstwy danych
+
+- data/raw: pobrane pliki NYC TLC (yellow/green parquet + taxi_zone_lookup.csv)
+- data/bronze:
+  - yellow_trips
+  - green_trips
+  - taxi_zone_lookup
+- data/silver:
+  - taxi_trips_cleaned
+- data/gold:
+  - monthly_zone_metrics
+  - payment_type_metrics
+
+## Idempotency
+
+Idempotency jest zapewniona przez:
+
+1. Downloader pomija istniejące pliki wejściowe.
+2. Bronze buduje tylko zakres wskazany w argumentach (`years`, `months`, `services`) i nadpisuje wyłącznie odpowiadające partycje.
+3. Silver i gold przeliczają tylko partycje/miesiące dotknięte w bieżącym przebiegu.
+4. Pipeline nie usuwa globalnie danych ani folderów.
+5. Wielokrotne uruchomienie z tym samym zakresem danych daje spójny wynik.
+
+## Walidacja jakości
+
+Po zbudowaniu gold uruchamiany jest moduł walidacji, który:
+
+- liczy rekordy bronze/silver/gold,
+- sprawdza reguły quality w silver,
+- liczy liczbę rekordów gold z nierozpoznaną strefą,
+- zapisuje raport do `artifacts/validation_report.json`,
+- kończy flow błędem, jeśli krytyczne checki nie przejdą.
+
+Reguły silver:
+
+- pickup/dropoff not null,
+- pickup <= dropoff,
+- trip_distance >= 0 i <= 300,
+- total_amount > 0 i <= 1000,
+- pu/do location not null,
+- duration between 1 and 720,
+- deduplikacja logicznych duplikatów.
+
+## CI smoke test
+
+Workflow GitHub Actions tworzy małą próbkę danych i uruchamia nowy entrypoint Prefect + Spark.
+
+## Szybkie komendy Makefile
+
+```bash
+make install
+make run-sample
+make run-full
+make ci-smoke
+```
