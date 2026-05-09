@@ -132,10 +132,31 @@ def _build_config_from_args(args: argparse.Namespace) -> TaxiPipelineConfig:
     )
 
 
+def run_pipeline(config: TaxiPipelineConfig) -> dict[str, Any]:
+    return taxi_pipeline_flow(config_raw=config.to_dict())
+
+
+def run_pipeline_for_scope(
+    project_root: Path,
+    year: int,
+    month: int,
+    service_type: str,
+    skip_download: bool = True,
+) -> dict[str, Any]:
+    config = TaxiPipelineConfig.create(
+        project_root=project_root,
+        years=[year],
+        months=[month],
+        services=[service_type],
+        run_download=not skip_download,
+    )
+    return run_pipeline(config)
+
+
 def main() -> None:
     args = _parse_args()
     config = _build_config_from_args(args)
-    taxi_pipeline_flow(config_raw=config.to_dict())
+    run_pipeline(config)
 
 
 if __name__ == "__main__":

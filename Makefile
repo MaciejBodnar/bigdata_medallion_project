@@ -1,4 +1,4 @@
-.PHONY: install run-sample run-full ci-smoke
+.PHONY: install run-sample run-full ci-smoke run-watcher run-consumer
 
 install:
 	python -m pip install --upgrade pip
@@ -12,3 +12,9 @@ run-full:
 
 ci-smoke:
 	python -m pipelines.taxi.main --skip-download --sample --years 2025 --months 1 --services yellow green
+
+run-watcher:
+	python -m streaming.watcher
+
+run-consumer:
+	python -m streaming.consumer
