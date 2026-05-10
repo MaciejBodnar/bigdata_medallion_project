@@ -1,4 +1,4 @@
-.PHONY: install run-sample run-full ci-smoke run-watcher run-consumer
+.PHONY: install run-sample run-full ci-smoke run-watcher run-consumer visualize-metrics run-user-test
 
 install:
 	python -m pip install --upgrade pip
@@ -18,3 +18,9 @@ run-watcher:
 
 run-consumer:
 	python -m streaming.consumer
+
+visualize-metrics:
+	python scripts/generate_quality_report.py
+
+run-user-test:
+	python scripts/user_data_product_test.py

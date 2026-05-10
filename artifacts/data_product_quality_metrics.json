@@ -1,29 +1,10 @@
 {
-  "generated_at_utc": "2026-05-10T18:03:56.971765+00:00",
-  "row_counts": {
-    "bronze_rows": 3523552,
-    "bronze_zone_rows": 265,
-    "silver_rows": 3423766,
-    "gold_monthly_rows": 469,
-    "gold_payment_rows": 11
-  },
-  "silver_rule_violations": {
-    "null_pickup_or_dropoff": 0,
-    "pickup_after_dropoff": 0,
-    "negative_trip_distance": 0,
-    "invalid_total_amount": 0,
-    "null_location_ids": 0,
-    "invalid_duration_range": 0,
-    "distance_over_cap": 0,
-    "amount_over_cap": 0
-  },
-  "gold_unmatched_zone_rows": 0,
-  "critical_checks": {
-    "silver_non_empty": true,
-    "gold_monthly_non_empty": true,
-    "silver_rules_no_violations": true
-  },
-  "data_product_quality_metrics": [
+  "generated_at_utc": "2026-05-10T18:03:56.971664+00:00",
+  "primary_data_product": "gold.monthly_zone_metrics",
+  "supporting_dataset": [
+    "gold.payment_type_metrics"
+  ],
+  "metrics": [
     {
       "metric_name": "zone_mapping_completeness",
       "metric_definition": "Percent of records in gold.monthly_zone_metrics where borough and zone are not Unknown.",
@@ -72,6 +53,5 @@
       "unit": "hours",
       "meets_threshold": true
     }
-  ],
-  "data_product_quality_metrics_path": "/Users/maciejbodnar/Downloads/bigdata_medallion_project/artifacts/data_product_quality_metrics.json"
+  ]
 }

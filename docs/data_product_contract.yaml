@@ -1,0 +1,171 @@
+version: 1.0.0
+product_name: nyc_tlc_monthly_zone_metrics
+product_owner: Maciej Bodnar
+owner_contact: repository issue or direct contact with repository owner
+product_purpose: >-
+  Provide a monthly, zone-level view of NYC taxi demand and revenue for quick analysis,
+  KPI tracking, and simple dashboarding without processing trip-level records.
+
+primary_dataset:
+  name: monthly_zone_metrics
+  logical_name: gold.monthly_zone_metrics
+  storage_path: data/gold/taxi/monthly_zone_metrics/
+  grain: one row per (pickup_year, pickup_month, service_type, pu_location_id)
+
+secondary_datasets:
+  - name: payment_type_metrics
+    logical_name: gold.payment_type_metrics
+    storage_path: data/gold/taxi/payment_type_metrics/
+    role: supporting dataset for payment mix analysis
+
+data_sources:
+  - name: NYC TLC Yellow Taxi trip records
+    type: parquet files
+    ingestion_path: data/raw/yellow/
+  - name: NYC TLC Green Taxi trip records
+    type: parquet files
+    ingestion_path: data/raw/green/
+  - name: NYC TLC Taxi Zone Lookup
+    type: csv file
+    ingestion_path: data/raw/taxi_zone_lookup.csv
+
+refresh:
+  frequency: every pipeline run
+  trigger_modes:
+    - batch run (python -m pipelines.taxi.main)
+    - event-driven micro-batch (watcher + RabbitMQ + consumer)
+
+access:
+  format: parquet
+  method: local filesystem
+  read_patterns:
+    primary: data/gold/taxi/monthly_zone_metrics/pickup_year=*/pickup_month=*/*.parquet
+    secondary: data/gold/taxi/payment_type_metrics/pickup_year=*/pickup_month=*/*.parquet
+
+schema:
+  monthly_zone_metrics:
+    - column_name: pickup_year
+      data_type: int
+      description: Year of pickup date used for aggregation partitioning.
+    - column_name: pickup_month
+      data_type: int
+      description: Month of pickup date used for aggregation partitioning.
+    - column_name: service_type
+      data_type: string
+      description: Taxi service type (yellow or green).
+    - column_name: pu_location_id
+      data_type: int
+      description: Pickup TLC location identifier.
+    - column_name: borough
+      data_type: string
+      description: Borough name mapped from TLC zone lookup.
+    - column_name: zone
+      data_type: string
+      description: Pickup zone mapped from TLC zone lookup.
+    - column_name: trip_count
+      data_type: bigint
+      description: Number of trips aggregated for the group.
+    - column_name: total_revenue
+      data_type: double
+      description: Sum of total_amount for all trips in the group.
+    - column_name: avg_trip_revenue
+      data_type: double
+      description: Average revenue per trip in the group.
+    - column_name: avg_trip_distance
+      data_type: double
+      description: Average trip distance in miles.
+    - column_name: avg_trip_duration_minutes
+      data_type: double
+      description: Average trip duration in minutes.
+    - column_name: total_passengers
+      data_type: bigint
+      description: Sum of passenger_count in the group.
+  payment_type_metrics:
+    - column_name: pickup_year
+      data_type: int
+      description: Year of pickup date.
+    - column_name: pickup_month
+      data_type: int
+      description: Month of pickup date.
+    - column_name: service_type
+      data_type: string
+      description: Taxi service type (yellow or green).
+    - column_name: payment_type
+      data_type: int
+      description: TLC payment type code.
+    - column_name: trip_count
+      data_type: bigint
+      description: Number of trips by payment type.
+    - column_name: total_revenue
+      data_type: double
+      description: Revenue by payment type.
+    - column_name: avg_trip_revenue
+      data_type: double
+      description: Average revenue by payment type.
+
+quality_metrics:
+  source_of_truth_for_current_values: artifacts/data_product_quality_metrics.json
+  metrics:
+    - name: zone_mapping_completeness
+      definition: >-
+        Percent of records in gold.monthly_zone_metrics where borough and zone are not Unknown.
+      current_value: auto; read latest value from artifacts/data_product_quality_metrics.json
+      threshold: ">= 99.5%"
+      cadence: every pipeline run
+    - name: silver_rule_compliance
+      definition: Percent of silver records compliant with business quality rules.
+      current_value: auto; read latest value from artifacts/data_product_quality_metrics.json
+      threshold: "100%"
+      cadence: every pipeline run
+    - name: gold_row_count
+      definition: Total number of rows in gold.monthly_zone_metrics.
+      current_value: auto; read latest value from artifacts/data_product_quality_metrics.json
+      threshold: "> 0"
+      cadence: every pipeline run
+    - name: data_freshness_hours
+      definition: Hours since the latest successful validation report and gold dataset update.
+      current_value: auto; read latest value from artifacts/data_product_quality_metrics.json
+      threshold: "< 168 hours"
+      cadence: every pipeline run
+
+quick_start:
+  - Create virtual environment and install dependencies: pip install -r requirements.txt
+  - Run sample pipeline: python -m pipelines.taxi.main --sample --years 2025 --months 1 --services yellow green
+  - Read primary data product from data/gold/taxi/monthly_zone_metrics/
+  - Check quality metrics in artifacts/data_product_quality_metrics.json
+
+example_usage:
+  first_visualization_idea: >
+    Create a bar chart of total_revenue by zone or a monthly trend chart of trip_count.
+  python_preview: |
+    import pandas as pd
+
+    df = pd.read_parquet("data/gold/taxi/monthly_zone_metrics")
+    print(df.head())
+  python_top_zones_by_revenue: |
+    import pandas as pd
+
+    df = pd.read_parquet("data/gold/taxi/monthly_zone_metrics")
+    top_zones = (
+        df.groupby(["pickup_year", "pickup_month", "zone"], as_index=False)["total_revenue"]
+        .sum()
+        .sort_values("total_revenue", ascending=False)
+        .head(10)
+    )
+    print(top_zones)
+
+use_cases:
+  - Track monthly demand and revenue shifts by pickup zone.
+  - Compare yellow vs green service performance across boroughs.
+  - Identify top zones for simple pricing, staffing, or operations discussion in class projects.
+
+not_intended_for_use:
+  - Real-time dispatching or minute-level operational decisions.
+  - Trip-level forensic analysis (product is aggregated monthly).
+  - Regulatory or billing-grade financial reporting.
+
+known_limitations:
+  - Data is aggregated monthly and zone-level, not trip-level.
+  - Coverage depends on the processed years/months/services available in local raw data.
+  - Product inherits quality and semantic limitations of NYC TLC source datasets.
+  - Access model is local filesystem parquet, not a multi-user serving API.

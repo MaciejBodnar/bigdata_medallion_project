@@ -211,3 +211,51 @@ Po zbudowaniu gold uruchamiany jest moduł walidacji, który:
 - liczy liczbę rekordów gold z nierozpoznaną strefą,
 - zapisuje raport do `artifacts/validation_report.json`,
 - kończy flow błędem, jeśli krytyczne checki nie przejdą.
+
+## Data Product (consumer quick view)
+
+Glowny data product w tym repo to `monthly_zone_metrics` (warstwa `gold`).
+
+- primary dataset: `data/gold/taxi/monthly_zone_metrics/`
+- supporting dataset: `data/gold/taxi/payment_type_metrics/`
+- glowny kontrakt produktu: `docs/data_product_contract.yaml`
+
+### Szybki start dla konsumenta
+
+1. Uruchom sample pipeline:
+
+```bash
+python -m pipelines.taxi.main --sample --years 2025 --months 1 --services yellow green
+```
+
+2. Odczytaj produkt:
+
+```bash
+make run-user-test
+```
+
+Lub bez Makefile:
+
+```bash
+python scripts/user_data_product_test.py
+```
+
+3. Sprawdz jakość danych produktu:
+
+```bash
+cat artifacts/data_product_quality_metrics.json
+```
+
+### Quality metrics (automatycznie liczone po pipeline run)
+
+- zone_mapping_completeness
+- silver_rule_compliance
+- gold_row_count
+- data_freshness_hours
+
+Wszystkie metryki maja definicje, current value, threshold i cadence w:
+
+- `artifacts/data_product_quality_metrics.json` (aktualne wartosci, format maszynowy)
+- `artifacts/data_product_quality_report.md` (raport do czytania)
+- `artifacts/data_product_quality_summary.png` (wykres wizualny)
+- `docs/data_product_contract.yaml` (kontrakt + opis konsumencki)
